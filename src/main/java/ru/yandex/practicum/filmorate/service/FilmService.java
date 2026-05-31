@@ -2,6 +2,7 @@ package ru.yandex.practicum.filmorate.service;
 
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
+import ru.yandex.practicum.filmorate.exception.NotFoundException;
 import ru.yandex.practicum.filmorate.exception.ValidationException;
 import ru.yandex.practicum.filmorate.model.Film;
 import ru.yandex.practicum.filmorate.storage.FilmStorage;
@@ -22,10 +23,12 @@ public class FilmService {
     }
 
     public Collection<Film> findAll() {
+        log.info("Getting all films");
         return filmStorage.findAll();
     }
 
     public Film create(Film film) {
+        log.info("Creating film");
         validateReleaseDate(film);
         Film created = filmStorage.create(film);
         log.info("Film created: {}", created);
@@ -33,9 +36,12 @@ public class FilmService {
     }
 
     public Film update(Film film) {
+        log.info("Updating film with id {}", film.getId());
         if (film.getId() <= 0) {
             throw new ValidationException("Film id is required");
         }
+        filmStorage.findById(film.getId())
+                .orElseThrow(() -> new NotFoundException("Film with id " + film.getId() + " not found"));
         validateReleaseDate(film);
         Film updated = filmStorage.update(film);
         log.info("Film updated: {}", updated);

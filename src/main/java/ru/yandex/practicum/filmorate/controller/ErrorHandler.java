@@ -34,4 +34,10 @@ public class ErrorHandler {
         String message = errors.isEmpty() ? "Validation error" : errors.get(0).getDefaultMessage();
         return Map.of("error", message);
     }
+
+    @ExceptionHandler
+    @ResponseStatus(HttpStatus.INTERNAL_SERVER_ERROR)
+    public Map<String, String> handleException(Exception e) {
+        return Map.of("error", e.getMessage());
+    }
 }

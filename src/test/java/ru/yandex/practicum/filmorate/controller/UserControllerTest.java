@@ -150,6 +150,17 @@ class UserControllerTest {
     }
 
     @Test
+    void createUser_nullBirthday_returns400() throws Exception {
+        User user = validUser();
+        user.setBirthday(null);
+
+        mockMvc.perform(post("/users")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(user)))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
     void createUser_futureBirthday_returns400() throws Exception {
         User user = validUser();
         user.setBirthday(LocalDate.now().plusDays(1));
