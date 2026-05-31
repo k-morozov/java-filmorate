@@ -9,34 +9,34 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
-import ru.yandex.practicum.filmorate.model.Film;
-import ru.yandex.practicum.filmorate.service.FilmService;
+import ru.yandex.practicum.filmorate.model.User;
+import ru.yandex.practicum.filmorate.service.UserService;
 
 import java.util.Collection;
 
 @RestController
-@RequestMapping("/films")
-public class FilmController {
+@RequestMapping("/users")
+public class UserController {
 
-    private final FilmService filmService;
+    private final UserService userService;
 
-    public FilmController(FilmService filmService) {
-        this.filmService = filmService;
+    public UserController(UserService userService) {
+        this.userService = userService;
     }
 
     @GetMapping
-    public Collection<Film> findAll() {
-        return filmService.findAll();
+    public Collection<User> findAll() {
+        return userService.findAll();
     }
 
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
-    public Film create(@Valid @RequestBody Film film) {
-        return filmService.create(film);
+    public User create(@Valid @RequestBody User user) {
+        return userService.create(user);
     }
 
     @PutMapping
-    public Film update(@Valid @RequestBody Film film) {
-        return filmService.update(film);
+    public User update(@Valid @RequestBody User user) {
+        return userService.update(user);
     }
 }
