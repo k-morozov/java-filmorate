@@ -9,6 +9,8 @@ import ru.yandex.practicum.filmorate.storage.FilmStorage;
 
 import java.time.LocalDate;
 import java.util.Collection;
+import java.util.Comparator;
+import java.util.List;
 
 @Slf4j
 @Service
@@ -17,14 +19,22 @@ public class FilmService {
     private static final LocalDate CINEMA_BIRTHDAY = LocalDate.of(1895, 12, 28);
 
     private final FilmStorage filmStorage;
+    private final UserService userService;
 
-    public FilmService(FilmStorage filmStorage) {
+    public FilmService(FilmStorage filmStorage, UserService userService) {
         this.filmStorage = filmStorage;
+        this.userService = userService;
     }
 
     public Collection<Film> findAll() {
         log.info("Getting all films");
         return filmStorage.findAll();
+    }
+
+    public Film findById(long id) {
+        log.info("Getting film by id {}", id);
+        return filmStorage.findById(id)
+                .orElseThrow(() -> new NotFoundException("Film with id " + id + " not found"));
     }
 
     public Film create(Film film) {
@@ -46,6 +56,34 @@ public class FilmService {
         Film updated = filmStorage.update(film);
         log.info("Film updated: {}", updated);
         return updated;
+    }
+
+    public void addLike(long filmId, long userId) {
+        log.info("User {} adding like to film {}", userId, filmId);
+        Film film = filmStorage.findById(filmId)
+                .orElseThrow(() -> new NotFoundException("Film with id " + filmId + " not found"));
+        userService.findById(userId);
+        film.getLikes().add(userId);
+        filmStorage.update(film);
+        log.info("User {} liked film {}", userId, filmId);
+    }
+
+    public void removeLike(long filmId, long userId) {
+        log.info("User {} removing like from film {}", userId, filmId);
+        Film film = filmStorage.findById(filmId)
+                .orElseThrow(() -> new NotFoundException("Film with id " + filmId + " not found"));
+        userService.findById(userId);
+        film.getLikes().remove(userId);
+        filmStorage.update(film);
+        log.info("User {} removed like from film {}", userId, filmId);
+    }
+
+    public List<Film> getPopular(int count) {
+        log.info("Getting {} popular films", count);
+        return filmStorage.findAll().stream()
+                .sorted(Comparator.comparingInt((Film f) -> f.getLikes().size()).reversed())
+                .limit(count)
+                .toList();
     }
 
     private void validateReleaseDate(Film film) {

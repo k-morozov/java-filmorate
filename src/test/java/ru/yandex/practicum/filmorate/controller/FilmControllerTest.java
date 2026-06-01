@@ -12,6 +12,7 @@ import ru.yandex.practicum.filmorate.model.Film;
 
 import java.time.LocalDate;
 
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
@@ -218,5 +219,169 @@ class FilmControllerTest {
                 .andExpect(jsonPath("$").isArray())
                 .andExpect(jsonPath("$.length()").value(1))
                 .andExpect(jsonPath("$[0].name").value("Inception"));
+    }
+
+    @Test
+    void getFilmById_exists_returns200() throws Exception {
+        mockMvc.perform(post("/films")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(validFilm())));
+
+        mockMvc.perform(get("/films/1"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value(1))
+                .andExpect(jsonPath("$.name").value("Inception"));
+    }
+
+    @Test
+    void getFilmById_notFound_returns404() throws Exception {
+        mockMvc.perform(get("/films/999"))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
+    void addLike_validFilmAndUser_returns204() throws Exception {
+        createUser();
+        mockMvc.perform(post("/films")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(validFilm())));
+
+        mockMvc.perform(put("/films/1/like/1"))
+                .andExpect(status().isNoContent());
+    }
+
+    @Test
+    void addLike_duplicate_isIdempotent() throws Exception {
+        createUser();
+        mockMvc.perform(post("/films")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(validFilm())));
+
+        mockMvc.perform(put("/films/1/like/1"));
+        mockMvc.perform(put("/films/1/like/1"));
+
+        mockMvc.perform(get("/films/1"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.likes.length()").value(1));
+    }
+
+    @Test
+    void addLike_filmNotFound_returns404() throws Exception {
+        createUser();
+
+        mockMvc.perform(put("/films/999/like/1"))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
+    void addLike_userNotFound_returns404() throws Exception {
+        mockMvc.perform(post("/films")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(validFilm())));
+
+        mockMvc.perform(put("/films/1/like/999"))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
+    void removeLike_validFilmAndUser_returns204() throws Exception {
+        createUser();
+        mockMvc.perform(post("/films")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(validFilm())));
+        mockMvc.perform(put("/films/1/like/1"));
+
+        mockMvc.perform(delete("/films/1/like/1"))
+                .andExpect(status().isNoContent());
+    }
+
+    @Test
+    void removeLike_filmNotFound_returns404() throws Exception {
+        createUser();
+
+        mockMvc.perform(delete("/films/999/like/1"))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
+    void removeLike_userNotFound_returns404() throws Exception {
+        mockMvc.perform(post("/films")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(validFilm())));
+
+        mockMvc.perform(delete("/films/1/like/999"))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
+    void getPopular_defaultCount_returns200WithList() throws Exception {
+        mockMvc.perform(post("/films")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(validFilm())));
+
+        mockMvc.perform(get("/films/popular"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$").isArray())
+                .andExpect(jsonPath("$.length()").value(1));
+    }
+
+    @Test
+    void getPopular_zeroCount_returns400() throws Exception {
+        mockMvc.perform(get("/films/popular?count=0"))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void getPopular_negativeCount_returns400() throws Exception {
+        mockMvc.perform(get("/films/popular?count=-1"))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void getPopular_customCount_limitsResult() throws Exception {
+        for (int i = 0; i < 3; i++) {
+            Film film = validFilm();
+            film.setName("Film " + i);
+            mockMvc.perform(post("/films")
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(objectMapper.writeValueAsString(film)));
+        }
+
+        mockMvc.perform(get("/films/popular?count=2"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(2));
+    }
+
+    @Test
+    void getPopular_sortedByLikes() throws Exception {
+        createUser();
+        Film film1 = validFilm();
+        film1.setName("LessPopular");
+        Film film2 = validFilm();
+        film2.setName("MorePopular");
+        mockMvc.perform(post("/films")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(film1)));
+        mockMvc.perform(post("/films")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(film2)));
+
+        mockMvc.perform(put("/films/2/like/1"));
+
+        mockMvc.perform(get("/films/popular"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].name").value("MorePopular"));
+    }
+
+    private void createUser() throws Exception {
+        ru.yandex.practicum.filmorate.model.User user = new ru.yandex.practicum.filmorate.model.User();
+        user.setEmail("user@example.com");
+        user.setLogin("userlogin");
+        user.setName("User Name");
+        user.setBirthday(java.time.LocalDate.of(1990, 1, 1));
+        mockMvc.perform(post("/users")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(user)))
+                .andExpect(status().isCreated());
     }
 }

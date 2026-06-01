@@ -12,6 +12,7 @@ import ru.yandex.practicum.filmorate.model.User;
 
 import java.time.LocalDate;
 
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
@@ -227,5 +228,211 @@ class UserControllerTest {
                 .andExpect(jsonPath("$").isArray())
                 .andExpect(jsonPath("$.length()").value(1))
                 .andExpect(jsonPath("$[0].email").value("user@example.com"));
+    }
+
+    @Test
+    void getUserById_exists_returns200() throws Exception {
+        mockMvc.perform(post("/users")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(validUser())));
+
+        mockMvc.perform(get("/users/1"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value(1))
+                .andExpect(jsonPath("$.email").value("user@example.com"));
+    }
+
+    @Test
+    void getUserById_notFound_returns404() throws Exception {
+        mockMvc.perform(get("/users/999"))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
+    void addFriend_validUsers_returns204() throws Exception {
+        createTwoUsers();
+
+        mockMvc.perform(put("/users/1/friends/2"))
+                .andExpect(status().isNoContent());
+    }
+
+    @Test
+    void addFriend_selfFriend_returns400() throws Exception {
+        mockMvc.perform(post("/users")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(validUser())));
+
+        mockMvc.perform(put("/users/1/friends/1"))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void addFriend_userNotFound_returns404() throws Exception {
+        mockMvc.perform(post("/users")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(validUser())));
+
+        mockMvc.perform(put("/users/999/friends/1"))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
+    void addFriend_friendNotFound_returns404() throws Exception {
+        mockMvc.perform(post("/users")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(validUser())));
+
+        mockMvc.perform(put("/users/1/friends/999"))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
+    void addFriend_isMutual() throws Exception {
+        createTwoUsers();
+        mockMvc.perform(put("/users/1/friends/2"));
+
+        mockMvc.perform(get("/users/2/friends"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(1))
+                .andExpect(jsonPath("$[0].id").value(1));
+    }
+
+    @Test
+    void removeFriend_validUsers_returns204() throws Exception {
+        createTwoUsers();
+        mockMvc.perform(put("/users/1/friends/2"));
+
+        mockMvc.perform(delete("/users/1/friends/2"))
+                .andExpect(status().isNoContent());
+    }
+
+    @Test
+    void removeFriend_isAlsoMutual() throws Exception {
+        createTwoUsers();
+        mockMvc.perform(put("/users/1/friends/2"));
+
+        mockMvc.perform(delete("/users/1/friends/2"));
+
+        mockMvc.perform(get("/users/2/friends"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(0));
+    }
+
+    @Test
+    void removeFriend_userNotFound_returns404() throws Exception {
+        mockMvc.perform(post("/users")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(validUser())));
+
+        mockMvc.perform(delete("/users/999/friends/1"))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
+    void removeFriend_friendNotFound_returns404() throws Exception {
+        mockMvc.perform(post("/users")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(validUser())));
+
+        mockMvc.perform(delete("/users/1/friends/999"))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
+    void getFriends_noFriends_returnsEmptyList() throws Exception {
+        mockMvc.perform(post("/users")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(validUser())));
+
+        mockMvc.perform(get("/users/1/friends"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$").isArray())
+                .andExpect(jsonPath("$.length()").value(0));
+    }
+
+    @Test
+    void getFriends_withFriend_returnsFriend() throws Exception {
+        createTwoUsers();
+        mockMvc.perform(put("/users/1/friends/2"));
+
+        mockMvc.perform(get("/users/1/friends"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(1))
+                .andExpect(jsonPath("$[0].id").value(2));
+    }
+
+    @Test
+    void getFriends_userNotFound_returns404() throws Exception {
+        mockMvc.perform(get("/users/999/friends"))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
+    void getCommonFriends_noCommon_returnsEmptyList() throws Exception {
+        createTwoUsers();
+
+        mockMvc.perform(get("/users/1/friends/common/2"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$").isArray())
+                .andExpect(jsonPath("$.length()").value(0));
+    }
+
+    @Test
+    void getCommonFriends_withCommon_returnsCommonFriend() throws Exception {
+        User third = new User();
+        third.setEmail("third@example.com");
+        third.setLogin("thirdlogin");
+        third.setName("Third User");
+        third.setBirthday(LocalDate.of(1992, 3, 3));
+
+        createTwoUsers();
+        mockMvc.perform(post("/users")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(third)));
+
+        mockMvc.perform(put("/users/1/friends/3"));
+        mockMvc.perform(put("/users/2/friends/3"));
+
+        mockMvc.perform(get("/users/1/friends/common/2"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(1))
+                .andExpect(jsonPath("$[0].id").value(3));
+    }
+
+    @Test
+    void getCommonFriends_userNotFound_returns404() throws Exception {
+        mockMvc.perform(post("/users")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(validUser())));
+
+        mockMvc.perform(get("/users/999/friends/common/1"))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
+    void getCommonFriends_otherUserNotFound_returns404() throws Exception {
+        mockMvc.perform(post("/users")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(validUser())));
+
+        mockMvc.perform(get("/users/1/friends/common/999"))
+                .andExpect(status().isNotFound());
+    }
+
+    private void createTwoUsers() throws Exception {
+        mockMvc.perform(post("/users")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(validUser())))
+                .andExpect(status().isCreated());
+
+        User second = new User();
+        second.setEmail("second@example.com");
+        second.setLogin("secondlogin");
+        second.setName("Second User");
+        second.setBirthday(LocalDate.of(1991, 2, 2));
+        mockMvc.perform(post("/users")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(second)))
+                .andExpect(status().isCreated());
     }
 }
