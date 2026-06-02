@@ -27,8 +27,7 @@ public class UserService {
 
     public User findById(long id) {
         log.info("Getting user by id {}", id);
-        return userStorage.findById(id)
-                .orElseThrow(() -> new NotFoundException("User with id " + id + " not found"));
+        return getUserOrThrow(id);
     }
 
     public User create(User user) {
@@ -44,8 +43,7 @@ public class UserService {
         if (user.getId() <= 0) {
             throw new ValidationException("User id is required");
         }
-        userStorage.findById(user.getId())
-                .orElseThrow(() -> new NotFoundException("User with id " + user.getId() + " not found"));
+        getUserOrThrow(user.getId());
         normalizeUser(user);
         User updated = userStorage.update(user);
         log.info("User updated: {}", updated);
@@ -57,10 +55,8 @@ public class UserService {
         if (userId == friendId) {
             throw new ValidationException("User cannot add themselves as a friend");
         }
-        User user = userStorage.findById(userId)
-                .orElseThrow(() -> new NotFoundException("User with id " + userId + " not found"));
-        User friend = userStorage.findById(friendId)
-                .orElseThrow(() -> new NotFoundException("User with id " + friendId + " not found"));
+        User user = getUserOrThrow(userId);
+        User friend = getUserOrThrow(friendId);
         user.getFriends().add(friendId);
         friend.getFriends().add(userId);
         userStorage.update(user);
@@ -70,10 +66,8 @@ public class UserService {
 
     public void removeFriend(long userId, long friendId) {
         log.info("User {} removing friend {}", userId, friendId);
-        User user = userStorage.findById(userId)
-                .orElseThrow(() -> new NotFoundException("User with id " + userId + " not found"));
-        User friend = userStorage.findById(friendId)
-                .orElseThrow(() -> new NotFoundException("User with id " + friendId + " not found"));
+        User user = getUserOrThrow(userId);
+        User friend = getUserOrThrow(friendId);
         user.getFriends().remove(friendId);
         friend.getFriends().remove(userId);
         userStorage.update(user);
@@ -83,25 +77,25 @@ public class UserService {
 
     public List<User> getFriends(long userId) {
         log.info("Getting friends of user {}", userId);
-        User user = userStorage.findById(userId)
-                .orElseThrow(() -> new NotFoundException("User with id " + userId + " not found"));
+        User user = getUserOrThrow(userId);
         return user.getFriends().stream()
-                .map(id -> userStorage.findById(id)
-                        .orElseThrow(() -> new NotFoundException("User with id " + id + " not found")))
+                .map(this::getUserOrThrow)
                 .toList();
     }
 
     public List<User> getCommonFriends(long userId, long otherId) {
         log.info("Getting common friends of users {} and {}", userId, otherId);
-        User user = userStorage.findById(userId)
-                .orElseThrow(() -> new NotFoundException("User with id " + userId + " not found"));
-        User other = userStorage.findById(otherId)
-                .orElseThrow(() -> new NotFoundException("User with id " + otherId + " not found"));
+        User user = getUserOrThrow(userId);
+        User other = getUserOrThrow(otherId);
         return user.getFriends().stream()
                 .filter(id -> other.getFriends().contains(id))
-                .map(id -> userStorage.findById(id)
-                        .orElseThrow(() -> new NotFoundException("User with id " + id + " not found")))
+                .map(this::getUserOrThrow)
                 .toList();
+    }
+
+    private User getUserOrThrow(long id) {
+        return userStorage.findById(id)
+                .orElseThrow(() -> new NotFoundException("User with id " + id + " not found"));
     }
 
     private void normalizeUser(User user) {

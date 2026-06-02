@@ -33,8 +33,7 @@ public class FilmService {
 
     public Film findById(long id) {
         log.info("Getting film by id {}", id);
-        return filmStorage.findById(id)
-                .orElseThrow(() -> new NotFoundException("Film with id " + id + " not found"));
+        return getFilmOrThrow(id);
     }
 
     public Film create(Film film) {
@@ -50,8 +49,7 @@ public class FilmService {
         if (film.getId() <= 0) {
             throw new ValidationException("Film id is required");
         }
-        filmStorage.findById(film.getId())
-                .orElseThrow(() -> new NotFoundException("Film with id " + film.getId() + " not found"));
+        getFilmOrThrow(film.getId());
         validateReleaseDate(film);
         Film updated = filmStorage.update(film);
         log.info("Film updated: {}", updated);
@@ -60,8 +58,7 @@ public class FilmService {
 
     public void addLike(long filmId, long userId) {
         log.info("User {} adding like to film {}", userId, filmId);
-        Film film = filmStorage.findById(filmId)
-                .orElseThrow(() -> new NotFoundException("Film with id " + filmId + " not found"));
+        Film film = getFilmOrThrow(filmId);
         userService.findById(userId);
         film.getLikes().add(userId);
         filmStorage.update(film);
@@ -70,8 +67,7 @@ public class FilmService {
 
     public void removeLike(long filmId, long userId) {
         log.info("User {} removing like from film {}", userId, filmId);
-        Film film = filmStorage.findById(filmId)
-                .orElseThrow(() -> new NotFoundException("Film with id " + filmId + " not found"));
+        Film film = getFilmOrThrow(filmId);
         userService.findById(userId);
         film.getLikes().remove(userId);
         filmStorage.update(film);
@@ -80,10 +76,18 @@ public class FilmService {
 
     public List<Film> getPopular(int count) {
         log.info("Getting {} popular films", count);
+        if (count <= 0) {
+            throw new ValidationException("Count must be greater than zero");
+        }
         return filmStorage.findAll().stream()
                 .sorted(Comparator.comparingInt((Film f) -> f.getLikes().size()).reversed())
                 .limit(count)
                 .toList();
+    }
+
+    private Film getFilmOrThrow(long id) {
+        return filmStorage.findById(id)
+                .orElseThrow(() -> new NotFoundException("Film with id " + id + " not found"));
     }
 
     private void validateReleaseDate(Film film) {
