@@ -25,6 +25,7 @@ public class Film {
     private LocalDate releaseDate;
     @Positive(message = "Duration must be a positive number")
     private int duration;
+    @NotNull(message = "MPA rating cannot be null")
     private Mpa mpa;
     private Set<Genre> genres = new LinkedHashSet<>();
     private Set<Long> likes = new HashSet<>();

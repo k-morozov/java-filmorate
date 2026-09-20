@@ -43,6 +43,7 @@ class FilmControllerTest {
         film.setDescription("A mind-bending thriller");
         film.setReleaseDate(LocalDate.of(2010, 7, 16));
         film.setDuration(148);
+        film.setMpa(new Mpa(1, null));
         return film;
     }
 
@@ -421,6 +422,17 @@ class FilmControllerTest {
                         .content(objectMapper.writeValueAsString(film)))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.genres.length()").value(2));
+    }
+
+    @Test
+    void createFilm_nullMpa_returns400() throws Exception {
+        Film film = validFilm();
+        film.setMpa(null);
+
+        mockMvc.perform(post("/films")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(film)))
+                .andExpect(status().isBadRequest());
     }
 
     @Test

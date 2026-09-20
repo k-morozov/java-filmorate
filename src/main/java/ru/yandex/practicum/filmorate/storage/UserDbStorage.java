@@ -10,6 +10,7 @@ import ru.yandex.practicum.filmorate.model.User;
 import java.sql.Date;
 import java.sql.ResultSet;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -44,7 +45,8 @@ public class UserDbStorage implements UserStorage {
     private static final String COUNT_FRIENDSHIP =
             "SELECT COUNT(*) FROM friendships WHERE user_id = ? AND friend_id = ?";
     private static final String SELECT_FRIEND_IDS = "SELECT friend_id FROM friendships WHERE user_id = ?";
-    private static final String SELECT_ALL_FRIENDSHIPS = "SELECT user_id, friend_id FROM friendships";
+    private static final String SELECT_FRIENDSHIPS_BY_USER_IDS =
+            "SELECT user_id, friend_id FROM friendships WHERE user_id IN (%s)";
 
     private final JdbcTemplate jdbcTemplate;
     private final SimpleJdbcInsert userInsert;
@@ -72,6 +74,7 @@ public class UserDbStorage implements UserStorage {
         parameters.put("birthday", Date.valueOf(user.getBirthday()));
         long id = userInsert.executeAndReturnKey(parameters).longValue();
         user.setId(id);
+        user.setFriends(new HashSet<>());
         return user;
     }
 
@@ -137,14 +140,19 @@ public class UserDbStorage implements UserStorage {
         if (users.isEmpty()) {
             return;
         }
+        List<Long> userIds = users.stream().map(User::getId).toList();
         Map<Long, Set<Long>> friendsByUser = new HashMap<>();
-        jdbcTemplate.query(SELECT_ALL_FRIENDSHIPS, rs -> {
+        jdbcTemplate.query(String.format(SELECT_FRIENDSHIPS_BY_USER_IDS, placeholders(userIds.size())), rs -> {
             friendsByUser.computeIfAbsent(rs.getLong("user_id"), key -> new HashSet<>())
                     .add(rs.getLong("friend_id"));
-        });
+        }, userIds.toArray());
         for (User user : users) {
             user.setFriends(friendsByUser.getOrDefault(user.getId(), new HashSet<>()));
         }
+    }
+
+    private static String placeholders(int count) {
+        return String.join(", ", Collections.nCopies(count, "?"));
     }
 
     private RowMapper<User> userMapper() {

@@ -5,6 +5,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.RowMapper;
 import org.springframework.jdbc.core.simple.SimpleJdbcInsert;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.annotation.Transactional;
 import ru.yandex.practicum.filmorate.model.Film;
 import ru.yandex.practicum.filmorate.model.Genre;
 import ru.yandex.practicum.filmorate.model.Mpa;
@@ -13,6 +14,7 @@ import java.sql.Date;
 import java.sql.ResultSet;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashSet;
@@ -41,13 +43,14 @@ public class FilmDbStorage implements FilmStorage {
     private static final String SELECT_FILM_GENRES =
             "SELECT g.id, g.name FROM film_genres AS fg JOIN genres AS g ON fg.genre_id = g.id "
                     + "WHERE fg.film_id = ? ORDER BY g.id";
-    private static final String SELECT_ALL_FILM_GENRES = "SELECT fg.film_id, g.id, g.name FROM film_genres AS fg "
-            + "JOIN genres AS g ON fg.genre_id = g.id ORDER BY g.id";
+    private static final String SELECT_GENRES_BY_FILM_IDS = "SELECT fg.film_id, g.id, g.name FROM film_genres AS fg "
+            + "JOIN genres AS g ON fg.genre_id = g.id WHERE fg.film_id IN (%s) ORDER BY g.id";
     private static final String INSERT_LIKE =
             "MERGE INTO film_likes (film_id, user_id) KEY (film_id, user_id) VALUES (?, ?)";
     private static final String DELETE_LIKE = "DELETE FROM film_likes WHERE film_id = ? AND user_id = ?";
     private static final String SELECT_FILM_LIKES = "SELECT user_id FROM film_likes WHERE film_id = ?";
-    private static final String SELECT_ALL_LIKES = "SELECT film_id, user_id FROM film_likes";
+    private static final String SELECT_LIKES_BY_FILM_IDS =
+            "SELECT film_id, user_id FROM film_likes WHERE film_id IN (%s)";
 
     private final JdbcTemplate jdbcTemplate;
     private final SimpleJdbcInsert filmInsert;
@@ -68,13 +71,14 @@ public class FilmDbStorage implements FilmStorage {
     }
 
     @Override
+    @Transactional
     public Film create(Film film) {
         Map<String, Object> parameters = new HashMap<>();
         parameters.put("name", film.getName());
         parameters.put("description", film.getDescription());
         parameters.put("release_date", Date.valueOf(film.getReleaseDate()));
         parameters.put("duration", film.getDuration());
-        parameters.put("mpa_id", film.getMpa() == null ? null : film.getMpa().getId());
+        parameters.put("mpa_id", film.getMpa().getId());
         long id = filmInsert.executeAndReturnKey(parameters).longValue();
         film.setId(id);
         saveGenres(film);
@@ -84,10 +88,11 @@ public class FilmDbStorage implements FilmStorage {
     }
 
     @Override
+    @Transactional
     public Film update(Film film) {
         jdbcTemplate.update(UPDATE_FILM, film.getName(), film.getDescription(),
                 Date.valueOf(film.getReleaseDate()), film.getDuration(),
-                film.getMpa() == null ? null : film.getMpa().getId(), film.getId());
+                film.getMpa().getId(), film.getId());
         jdbcTemplate.update(DELETE_FILM_GENRES, film.getId());
         saveGenres(film);
         film.setGenres(readGenres(film.getId()));
@@ -154,11 +159,12 @@ public class FilmDbStorage implements FilmStorage {
         if (films.isEmpty()) {
             return;
         }
+        List<Long> filmIds = films.stream().map(Film::getId).toList();
         Map<Long, Set<Genre>> genresByFilm = new HashMap<>();
-        jdbcTemplate.query(SELECT_ALL_FILM_GENRES, rs -> {
+        jdbcTemplate.query(String.format(SELECT_GENRES_BY_FILM_IDS, placeholders(filmIds.size())), rs -> {
             genresByFilm.computeIfAbsent(rs.getLong("film_id"), key -> new LinkedHashSet<>())
                     .add(new Genre(rs.getInt("id"), rs.getString("name")));
-        });
+        }, filmIds.toArray());
         for (Film film : films) {
             film.setGenres(genresByFilm.getOrDefault(film.getId(), new LinkedHashSet<>()));
         }
@@ -168,14 +174,19 @@ public class FilmDbStorage implements FilmStorage {
         if (films.isEmpty()) {
             return;
         }
+        List<Long> filmIds = films.stream().map(Film::getId).toList();
         Map<Long, Set<Long>> likesByFilm = new HashMap<>();
-        jdbcTemplate.query(SELECT_ALL_LIKES, rs -> {
+        jdbcTemplate.query(String.format(SELECT_LIKES_BY_FILM_IDS, placeholders(filmIds.size())), rs -> {
             likesByFilm.computeIfAbsent(rs.getLong("film_id"), key -> new HashSet<>())
                     .add(rs.getLong("user_id"));
-        });
+        }, filmIds.toArray());
         for (Film film : films) {
             film.setLikes(likesByFilm.getOrDefault(film.getId(), new HashSet<>()));
         }
+    }
+
+    private static String placeholders(int count) {
+        return String.join(", ", Collections.nCopies(count, "?"));
     }
 
     private RowMapper<Genre> genreMapper() {
