@@ -4,13 +4,19 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
+import org.springframework.boot.test.autoconfigure.jdbc.AutoConfigureTestDatabase;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
 import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.web.servlet.MockMvc;
 import ru.yandex.practicum.filmorate.model.Film;
+import ru.yandex.practicum.filmorate.model.Genre;
+import ru.yandex.practicum.filmorate.model.Mpa;
 
 import java.time.LocalDate;
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Set;
 
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -20,6 +26,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @SpringBootTest
+@AutoConfigureTestDatabase
 @AutoConfigureMockMvc
 @DirtiesContext(classMode = DirtiesContext.ClassMode.BEFORE_EACH_TEST_METHOD)
 class FilmControllerTest {
@@ -383,5 +390,59 @@ class FilmControllerTest {
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(user)))
                 .andExpect(status().isCreated());
+    }
+
+    @Test
+    void createFilm_withMpaAndGenres_returnsResolvedNames() throws Exception {
+        Film film = validFilm();
+        film.setMpa(new Mpa(5, null));
+        film.setGenres(new LinkedHashSet<>(Set.of(new Genre(2, null), new Genre(1, null))));
+
+        mockMvc.perform(post("/films")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(film)))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.mpa.id").value(5))
+                .andExpect(jsonPath("$.mpa.name").value("NC-17"))
+                .andExpect(jsonPath("$.genres.length()").value(2))
+                .andExpect(jsonPath("$.genres[0].id").value(1))
+                .andExpect(jsonPath("$.genres[0].name").value("Комедия"))
+                .andExpect(jsonPath("$.genres[1].id").value(2));
+    }
+
+    @Test
+    void createFilm_duplicateGenres_storesEachGenreOnce() throws Exception {
+        Film film = validFilm();
+        film.setMpa(new Mpa(1, null));
+        film.setGenres(new LinkedHashSet<>(List.of(new Genre(1, null), new Genre(2, null), new Genre(1, "Комедия"))));
+
+        mockMvc.perform(post("/films")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(film)))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.genres.length()").value(2));
+    }
+
+    @Test
+    void createFilm_unknownMpa_returns404() throws Exception {
+        Film film = validFilm();
+        film.setMpa(new Mpa(10, null));
+
+        mockMvc.perform(post("/films")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(film)))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
+    void createFilm_unknownGenre_returns404() throws Exception {
+        Film film = validFilm();
+        film.setMpa(new Mpa(5, null));
+        film.setGenres(new LinkedHashSet<>(Set.of(new Genre(500, null))));
+
+        mockMvc.perform(post("/films")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(film)))
+                .andExpect(status().isNotFound());
     }
 }

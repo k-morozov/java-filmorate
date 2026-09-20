@@ -1,6 +1,7 @@
 package ru.yandex.practicum.filmorate.service;
 
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Service;
 import ru.yandex.practicum.filmorate.exception.NotFoundException;
 import ru.yandex.practicum.filmorate.exception.ValidationException;
@@ -16,7 +17,7 @@ public class UserService {
 
     private final UserStorage userStorage;
 
-    public UserService(UserStorage userStorage) {
+    public UserService(@Qualifier("userDbStorage") UserStorage userStorage) {
         this.userStorage = userStorage;
     }
 
@@ -55,42 +56,31 @@ public class UserService {
         if (userId == friendId) {
             throw new ValidationException("User cannot add themselves as a friend");
         }
-        User user = getUserOrThrow(userId);
-        User friend = getUserOrThrow(friendId);
-        user.getFriends().add(friendId);
-        friend.getFriends().add(userId);
-        userStorage.update(user);
-        userStorage.update(friend);
-        log.info("User {} and user {} are now friends", userId, friendId);
+        getUserOrThrow(userId);
+        getUserOrThrow(friendId);
+        userStorage.addFriend(userId, friendId);
+        log.info("User {} added user {} as a friend", userId, friendId);
     }
 
     public void removeFriend(long userId, long friendId) {
         log.info("User {} removing friend {}", userId, friendId);
-        User user = getUserOrThrow(userId);
-        User friend = getUserOrThrow(friendId);
-        user.getFriends().remove(friendId);
-        friend.getFriends().remove(userId);
-        userStorage.update(user);
-        userStorage.update(friend);
-        log.info("User {} and user {} are no longer friends", userId, friendId);
+        getUserOrThrow(userId);
+        getUserOrThrow(friendId);
+        userStorage.removeFriend(userId, friendId);
+        log.info("User {} removed user {} from friends", userId, friendId);
     }
 
     public List<User> getFriends(long userId) {
         log.info("Getting friends of user {}", userId);
-        User user = getUserOrThrow(userId);
-        return user.getFriends().stream()
-                .map(this::getUserOrThrow)
-                .toList();
+        getUserOrThrow(userId);
+        return userStorage.getFriends(userId);
     }
 
     public List<User> getCommonFriends(long userId, long otherId) {
         log.info("Getting common friends of users {} and {}", userId, otherId);
-        User user = getUserOrThrow(userId);
-        User other = getUserOrThrow(otherId);
-        return user.getFriends().stream()
-                .filter(id -> other.getFriends().contains(id))
-                .map(this::getUserOrThrow)
-                .toList();
+        getUserOrThrow(userId);
+        getUserOrThrow(otherId);
+        return userStorage.getCommonFriends(userId, otherId);
     }
 
     private User getUserOrThrow(long id) {

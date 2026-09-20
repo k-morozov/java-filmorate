@@ -25,6 +25,8 @@ import java.util.List;
 @RequestMapping("/films")
 public class FilmController {
 
+    private static final String DEFAULT_POPULAR_COUNT = "10";
+
     private final FilmService filmService;
 
     public FilmController(FilmService filmService) {
@@ -65,7 +67,7 @@ public class FilmController {
     }
 
     @GetMapping("/popular")
-    public List<Film> getPopular(@RequestParam(defaultValue = "10") @Positive int count) {
+    public List<Film> getPopular(@RequestParam(defaultValue = DEFAULT_POPULAR_COUNT) @Positive int count) {
         return filmService.getPopular(count);
     }
 }
