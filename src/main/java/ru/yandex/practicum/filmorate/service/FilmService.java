@@ -12,10 +12,10 @@ import ru.yandex.practicum.filmorate.storage.FilmStorage;
 
 import java.time.LocalDate;
 import java.util.Collection;
-import java.util.Comparator;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 @Slf4j
 @Service
@@ -116,10 +116,9 @@ public class FilmService {
             film.setGenres(new LinkedHashSet<>());
             return;
         }
-        Set<Genre> genres = film.getGenres().stream()
-                .map(genre -> genreService.findById(genre.getId()))
-                .sorted(Comparator.comparingInt(Genre::getId))
-                .collect(LinkedHashSet::new, Set::add, Set::addAll);
-        film.setGenres(genres);
+        Set<Integer> genreIds = film.getGenres().stream()
+                .map(Genre::getId)
+                .collect(Collectors.toCollection(LinkedHashSet::new));
+        film.setGenres(new LinkedHashSet<>(genreService.findAllByIds(genreIds)));
     }
 }

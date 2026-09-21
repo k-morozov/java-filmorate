@@ -7,7 +7,10 @@ import ru.yandex.practicum.filmorate.exception.NotFoundException;
 import ru.yandex.practicum.filmorate.model.Genre;
 import ru.yandex.practicum.filmorate.storage.GenreStorage;
 
+import java.util.Collection;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Set;
 
 @Slf4j
 @Service
@@ -22,6 +25,18 @@ public class GenreService {
     public List<Genre> findAll() {
         log.info("Getting all genres");
         return genreStorage.findAll();
+    }
+
+    public List<Genre> findAllByIds(Collection<Integer> ids) {
+        log.info("Getting genres by ids {}", ids);
+        Set<Integer> requested = new LinkedHashSet<>(ids);
+        List<Genre> genres = genreStorage.findAllByIds(requested);
+        if (genres.size() < requested.size()) {
+            Set<Integer> missing = new LinkedHashSet<>(requested);
+            genres.forEach(genre -> missing.remove(genre.getId()));
+            throw new NotFoundException("Genres with ids " + missing + " not found");
+        }
+        return genres;
     }
 
     public Genre findById(int id) {

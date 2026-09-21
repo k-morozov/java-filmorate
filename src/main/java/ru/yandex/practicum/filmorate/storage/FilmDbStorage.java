@@ -14,7 +14,6 @@ import java.sql.Date;
 import java.sql.ResultSet;
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashSet;
@@ -93,7 +92,6 @@ public class FilmDbStorage implements FilmStorage {
         jdbcTemplate.update(UPDATE_FILM, film.getName(), film.getDescription(),
                 Date.valueOf(film.getReleaseDate()), film.getDuration(),
                 film.getMpa().getId(), film.getId());
-        jdbcTemplate.update(DELETE_FILM_GENRES, film.getId());
         saveGenres(film);
         film.setGenres(readGenres(film.getId()));
         film.setLikes(readLikes(film.getId()));
@@ -133,6 +131,7 @@ public class FilmDbStorage implements FilmStorage {
     }
 
     private void saveGenres(Film film) {
+        jdbcTemplate.update(DELETE_FILM_GENRES, film.getId());
         if (film.getGenres() == null || film.getGenres().isEmpty()) {
             return;
         }
@@ -161,7 +160,7 @@ public class FilmDbStorage implements FilmStorage {
         }
         List<Long> filmIds = films.stream().map(Film::getId).toList();
         Map<Long, Set<Genre>> genresByFilm = new HashMap<>();
-        jdbcTemplate.query(String.format(SELECT_GENRES_BY_FILM_IDS, placeholders(filmIds.size())), rs -> {
+        jdbcTemplate.query(String.format(SELECT_GENRES_BY_FILM_IDS, SqlUtils.placeholders(filmIds.size())), rs -> {
             genresByFilm.computeIfAbsent(rs.getLong("film_id"), key -> new LinkedHashSet<>())
                     .add(new Genre(rs.getInt("id"), rs.getString("name")));
         }, filmIds.toArray());
@@ -176,17 +175,13 @@ public class FilmDbStorage implements FilmStorage {
         }
         List<Long> filmIds = films.stream().map(Film::getId).toList();
         Map<Long, Set<Long>> likesByFilm = new HashMap<>();
-        jdbcTemplate.query(String.format(SELECT_LIKES_BY_FILM_IDS, placeholders(filmIds.size())), rs -> {
+        jdbcTemplate.query(String.format(SELECT_LIKES_BY_FILM_IDS, SqlUtils.placeholders(filmIds.size())), rs -> {
             likesByFilm.computeIfAbsent(rs.getLong("film_id"), key -> new HashSet<>())
                     .add(rs.getLong("user_id"));
         }, filmIds.toArray());
         for (Film film : films) {
             film.setLikes(likesByFilm.getOrDefault(film.getId(), new HashSet<>()));
         }
-    }
-
-    private static String placeholders(int count) {
-        return String.join(", ", Collections.nCopies(count, "?"));
     }
 
     private RowMapper<Genre> genreMapper() {

@@ -8,6 +8,8 @@ import org.springframework.boot.test.autoconfigure.jdbc.JdbcTest;
 import org.springframework.context.annotation.Import;
 import ru.yandex.practicum.filmorate.model.Genre;
 
+import java.util.List;
+
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.tuple;
 
@@ -40,6 +42,25 @@ class GenreDbStorageTest {
                     assertThat(genre).hasFieldOrPropertyWithValue("id", 1);
                     assertThat(genre).hasFieldOrPropertyWithValue("name", "Комедия");
                 });
+    }
+
+    @Test
+    void findAllByIdsReturnsRequestedGenresOrderedById() {
+        assertThat(genreStorage.findAllByIds(List.of(3, 1)))
+                .extracting(Genre::getId, Genre::getName)
+                .containsExactly(tuple(1, "Комедия"), tuple(3, "Мультфильм"));
+    }
+
+    @Test
+    void findAllByIdsSkipsUnknownIds() {
+        assertThat(genreStorage.findAllByIds(List.of(1, 9999)))
+                .extracting(Genre::getId)
+                .containsExactly(1);
+    }
+
+    @Test
+    void findAllByIdsReturnsEmptyListForEmptyInput() {
+        assertThat(genreStorage.findAllByIds(List.of())).isEmpty();
     }
 
     @Test
