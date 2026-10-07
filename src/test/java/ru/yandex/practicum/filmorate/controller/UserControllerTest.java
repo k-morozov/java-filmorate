@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
+import org.springframework.boot.test.autoconfigure.jdbc.AutoConfigureTestDatabase;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
 import org.springframework.test.annotation.DirtiesContext;
@@ -20,6 +21,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @SpringBootTest
+@AutoConfigureTestDatabase
 @AutoConfigureMockMvc
 @DirtiesContext(classMode = DirtiesContext.ClassMode.BEFORE_EACH_TEST_METHOD)
 class UserControllerTest {
@@ -287,14 +289,13 @@ class UserControllerTest {
     }
 
     @Test
-    void addFriend_isMutual() throws Exception {
+    void addFriend_isOneDirectional() throws Exception {
         createTwoUsers();
         mockMvc.perform(put("/users/1/friends/2"));
 
         mockMvc.perform(get("/users/2/friends"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.length()").value(1))
-                .andExpect(jsonPath("$[0].id").value(1));
+                .andExpect(jsonPath("$.length()").value(0));
     }
 
     @Test
@@ -307,15 +308,32 @@ class UserControllerTest {
     }
 
     @Test
-    void removeFriend_isAlsoMutual() throws Exception {
+    void removeFriend_usersAreNotFriends_returns204() throws Exception {
+        createTwoUsers();
+
+        mockMvc.perform(delete("/users/1/friends/2"))
+                .andExpect(status().isNoContent());
+
+        mockMvc.perform(get("/users/1/friends"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(0));
+    }
+
+    @Test
+    void removeFriend_keepsReverseFriendship() throws Exception {
         createTwoUsers();
         mockMvc.perform(put("/users/1/friends/2"));
+        mockMvc.perform(put("/users/2/friends/1"));
 
         mockMvc.perform(delete("/users/1/friends/2"));
 
-        mockMvc.perform(get("/users/2/friends"))
+        mockMvc.perform(get("/users/1/friends"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.length()").value(0));
+        mockMvc.perform(get("/users/2/friends"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(1))
+                .andExpect(jsonPath("$[0].id").value(1));
     }
 
     @Test
